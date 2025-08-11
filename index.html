@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circular Ping Pong</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* All your CSS goes here */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #4CAF50; /* Green background as requested */
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            width: 100vw; /* Ensure body takes full viewport width */
+            height: 100vh; /* Ensure body takes full viewport height */
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0px; /* Reduced padding to maximize canvas size */
+            position: relative;
+            aspect-ratio: 1 / 1; /* Keep it square */
+            box-sizing: border-box; /* Include padding in dimensions */
+        }
+        canvas {
+            background-color: #333; /* Dark background for the main game area */
+            border-radius: 50%; /* Make the canvas appear circular */
+            display: block;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.3);
+            /* width and height are set by JS */
+        }
+        /* Score boards and lives display are now fixed to the viewport */
+        .score-boards {
+            position: fixed; /* Fixed position relative to viewport */
+            pointer-events: none; /* Allow clicks to pass through to canvas if needed */
+            top: 0;
+            left: 0;
+            width: 100vw; /* Covers entire viewport to allow absolute positioning of children */
+            height: 100vh;
+        }
+        .score-box {
+            position: absolute; /* Absolute position within score-boards (which is fixed to viewport) */
+            background-color: #2a60b9; /* Blue box */
+            border: 2px solid #1a4a8c;
+            border-radius: 8px;
+            color: white;
+            padding: 8px 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-width: 100px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            pointer-events: auto; /* Allow interaction with score boxes if they become interactive */
+            z-index: 20; /* Ensure score boxes are above canvas but below menus */
+        }
+        .score-box-inner {
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+        }
+        .score-box-inner span {
+            flex: 1;
+            text-align: center;
+        }
+        .score-box-inner .divider {
+            width: 2px;
+            background-color: #ff4d4d; /* Red line */
+            margin: 0 5px;
+        }
+        /* Positioning for score boxes relative to the viewport (set by JS for dynamic margins) */
+        /* These are initial values, JS will override them */
+        #score-top-right { top: 20px; right: 20px; }
+        #score-bottom-right { bottom: 20px; right: 20px; }
+        #score-top-left { top: 20px; left: 20px; }
+        #score-bottom-left { bottom: 20px; left: 20px; }
+
+        .message-box, .main-menu { /* Removed #pauseMessage */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.9); /* Slightly more opaque for better readability */
+            color: white;
+            padding: 25px 40px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.5em;
+            z-index: 100; /* Ensure menus are on top */
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden by default */
+            max-width: 80%; /* Ensure responsiveness and prevent overflow */
+            max-height: 90%;
+            overflow-y: auto; /* Enable scrolling for long content */
+            box-sizing: border-box;
+        }
+        .message-box button, .main-menu button, #pauseButton { /* Removed #resumeButton from here */
+            background-color: #FF0000; /* Red color for all buttons */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+        .message-box button:hover, .main-menu button:hover, #pauseButton:hover { /* Removed #resumeButton from here */
+            background-color: #CC0000; /* Darker red on hover */
+        }
+        .main-menu h2 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        .main-menu p {
+            font-size: 0.9em;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            text-align: left;
+        }
+        .main-menu .controls-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+            font-size: 0.8em;
+            text-align: left;
+        }
+        .main-menu .controls-list li {
+            margin-bottom: 5px;
+        }
+        .lives-display {
+            position: fixed; /* Fixed position relative to viewport */
+            bottom: 20px; /* Changed from top to bottom */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            font-weight: bold;
+            z-index: 50;
+        }
+        #pauseButton {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            margin: 0; /* Override default button margin */
+        }
+        .power-up-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        .power-up-list li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .power-up-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .creator-info {
+            color: orange;
+            font-size: 0.9em; /* Adjust font size as needed */
+            margin-bottom: 10px; /* Space between this line and the title */
+        }
+        .copyright-info {
+            color: white;
+            font-size: 0.75em; /* Smaller font size for copyright */
+            margin-top: 20px; /* Space above copyright */
+            text-align: center;
+        }
+        .hazard-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        .hazard-list li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .hazard-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="score-boards">
+        <div id="score-top-right" class="score-box">
+            <div class="score-box-inner">
+                <span id="score-top-right-passed">0</span>
+                <div class="divider"></div>
+                <span id="score-top-right-missed">0</span>
+            </div>
+        </div>
+        <div id="score-bottom-right" class="score-box">
+            <div class="score-box-inner">
+                <span id="score-bottom-right-passed">0</span>
+                <div class="divider"></div>
+                <span id="score-bottom-right-missed">0</span>
+            </div>
+        </div>
+        <div id="score-top-left" class="score-box">
+            <div class="score-box-inner">
+                <span id="score-top-left-passed">0</span>
+                <div class="divider"></div>
+                <span id="score-top-left-missed">0</span>
+            </div>
+        </div>
+        <div id="score-bottom-left" class="score-box">
+            <div class="score-box-inner">
+                <span id="score-bottom-left-passed">0</span>
+                <div class="divider"></div>
+                <span id="score-bottom-left-missed">0</span>
+            </div>
+        </div>
+    </div>
+    <div id="livesDisplay" class="lives-display" style="display: none;">Lives: 3</div>
+
+    <button id="pauseButton" style="display: none;">Pause</button>
+
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="mainMenu" class="main-menu">
+            <div class="creator-info">Made by Aarav Sachdeva, founder and CEO of NOS</div>
+            <h2>Circular Pong</h2>
+            <p>Welcome to Circular Pong! Your goal is to keep the ball within the circular arena by hitting it with the active paddle.</p>
+            <p>Only one paddle is active at a time, corresponding to the quadrant the ball is in.</p>
+            <h3>Controls:</h3>
+            <ul class="controls-list">
+                <li><strong>Top-Left (Q1), Top-Right (Q2) & Bottom-Right (Q3):</strong> Use <kbd>W</kbd> or <kbd>ArrowUp</kbd> for clockwise movement; <kbd>S</kbd> or <kbd>ArrowDown</kbd> for counter-clockwise movement.</li>
+                <li><strong>Bottom-Left (Q4):</strong> Use <kbd>W</kbd> or <kbd>ArrowUp</kbd> for counter-clockwise movement; <kbd>S</kbd> or <kbd>ArrowDown</kbd> for clockwise movement.</li>
+            </ul>
+            <h3>Power-Ups & Downs:</h3>
+            <ul class="power-up-list">
+                <li><div class="power-up-color" style="background-color: #00FF00;"></div> <strong>Paddle Grow:</strong> Temporarily increases your active paddle's size.</li>
+                <li><div class="power-up-color" style="background-color: #FF0000;"></div> <strong>Paddle Shrink:</strong> Temporarily decreases your active paddle's size.</li>
+                <li><div class="power-up-color" style="background-color: #00FFFF;"></div> <strong>Slow Motion:</strong> Temporarily reduces the ball's speed.</li>
+                <li><div class="power-up-color" style="background-color: #FFD700;"></div> <strong>Extra Life:</strong> Grants you an additional life.</li>
+                <li><div class="power-up-color" style="background-color: #C0C0C0;"></div> <strong>Teleporta:</strong> Teleports the ball to a random place in the circle.</li>
+                <li><div class="power-up-color" style="background-color: #8A2BE2;"></div> <strong>Ball Flicker:</strong> Makes the ball rapidly flicker, increasing difficulty.</li>
+                <li><div class="power-up-color" style="background-color: #A52A2A;"></div> <strong>Invert Controls:</strong> Temporarily reverses your paddle movement.</li>
+                <li><div class="power-up-color" style="background-color: #F4A460;"></div> <strong>Ball Appear:</strong> (Chaos Mode Only) Makes the ball orange for a short period, then reverts to black.</li>
+            </ul>
+            <p style="font-size: 0.8em; margin-top: 15px;">*Power-ups do not appear in Basic mode. Teleporta and Ball Flicker only appear in Stealth and Chaos modes. Invert Controls appears in all modes except Stealth. Ball Appear only appears in Chaos mode.</p>
+            
+            <h3>Hazards:</h3>
+            <ul class="hazard-list">
+                <li><div class="hazard-color" style="background-color: #FFFFFF;"></div> <strong>Static Obstacles:</strong> Temporary, unmoving blocks that the ball bounces off.</li>
+                <li><div class="hazard-color" style="background-color: #FF4500;"></div> <strong>Moving Mines:</strong> Temporary, slow-moving objects that reduce a life if touched.</li>
+            </ul>
+            <p style="font-size: 0.8em; margin-top: 15px;">*Hazards do not appear in Basic mode. Moving Mines only appear in Easy, Medium, Hard, and Chaos modes.</p>
+
+            <h3>Select Difficulty:</h3>
+            <button id="basicBtn">Basic</button>
+            <button id="easyBtn">Easy</button>
+            <button id="mediumBtn">Medium</button>
+            <button id="hardBtn">Hard</button>
+            <button id="stealthBtn">Stealth</button>
+            <button id="chaosBtn">Chaos</button> 
+
+            <div class="copyright-info">© 2025 NOS_Circular_PONG | All Rights Reserved</div>
+        </div>
+
+        <div id="messageBox" class="message-box">
+            <p id="messageText"></p>
+            <button id="resumeButton" style="display:none;">Resume Game</button>
+            <button id="restartButton">Restart Game</button>
+            <button id="mainMenuButton">Main Menu</button>
+            <button id="geminiInsightButton" class="gemini-button">✨ Get Game Insights ✨</button>
+            <div id="loadingIndicator" style="display:none; color: #fff; margin-top: 10px;">Loading insights...</div>
+        </div>
+    </div>
+
+    <script>
+        // All your JavaScript code goes here
+        // Get the canvas element and its 2D rendering context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game constants and variables
+        let CANVAS_SIZE; // Will be determined dynamically
+        let CIRCLE_RADIUS; // Radius of the main black game circle
+        let PADDLE_RADIUS; // Radius at which paddles orbit
+
+        const BALL_RADIUS = 10;
+        const PADDLE_THICKNESS = 15;
+        const PADDLE_ARC_PERCENTAGE = 0.10;
+        const POWER_UP_RADIUS = 15;
+        const POWER_UP_SPAWN_INTERVAL = 8000; // milliseconds
+        const POWER_UP_DURATION = 5000; // milliseconds
+        const BALL_FLICKER_INTERVAL = 100; // ms for ball flicker effect
+        const INVERT_CONTROLS_DURATION = 2000; // milliseconds for invert controls
+        const BALL_APPEAR_COLOR_DURATION = 5000; // milliseconds for ball color change in chaos mode
+
+        // Ball Trail constants
+        const MAX_TRAIL_LENGTH = 15; // Number of segments in the trail
+        const TRAIL_FADE_START_ALPHA = 0.6; // Starting opacity for the trail segments
+
+        // Hazard constants
+        const OBSTACLE_RADIUS = 20;
+        const MINE_RADIUS = 15;
+        const MINE_SPEED = 0.2; // Speed of moving mines
+        const OBSTACLE_SPAWN_INTERVAL = 10000; // milliseconds
+        const MINE_SPAWN_INTERVAL = 12000; // milliseconds
+        const HAZARD_DURATION = 5000; // milliseconds for both obstacles and mines (default)
+        const CHAOS_OBSTACLE_DURATION = 15000; // milliseconds for obstacles in Chaos mode
+
+        // Speed settings for ball and paddles, defined per difficulty
+        const BALL_SPEEDS = {
+            basic: 0.4, 
+            easy: 0.4,
+            medium: 0.8,
+            hard: 1.2,
+            stealth: 2,
+            chaos: 2 
+        };
+
+        const PADDLE_SPEEDS = {
+            basic: 0.005, 
+            easy: 0.005, 
+            medium: 0.01,
+            hard: 0.015,
+            stealth: 0.02,
+            chaos: 0.02 
+        };
+
+        // Lives settings per difficulty
+        const LIVES_BY_DIFFICULTY = {
+            basic: 5, 
+            easy: 4,
+            medium: 3,
+            hard: 2,
+            stealth: 1,
+            chaos: 1 
+        };
+
+        // Dynamic ball speed increase
+        const SPEED_INCREASE_THRESHOLD = 1; // Increase speed after every 1 hit
+        const SPEED_INCREASE_INCREMENT = 0.05; // Amount to increase ball speed by (reduced slightly for per-hit)
+
+        // Dynamic nudge angle increase
+        const NUDGE_INCREASE_THRESHOLD = 4; // Increase nudge every 4 hits
+        const NUDGE_INCREASE_INCREMENT = Math.PI / 64; // Amount to increase nudge angle by (approx 2.8 degrees)
+        const MAX_NUDGE_ANGLE = Math.PI; // Increased maximum nudge angle to 180 degrees
+
+        // Nudge angle for center line crossing, defined per difficulty (initial value)
+        const LINE_DEFLECTION_ANGLES = {
+            basic: Math.PI / 16, 
+            easy: Math.PI / 12, 
+            medium: Math.PI / 10, 
+            hard: Math.PI / 6, 
+            stealth: Math.PI / 4, 
+            chaos: Math.PI * 0.75 
+        };
+        let currentNudgeAngle; // Will be set based on difficulty (initial nudge) and then dynamically increased
+
+
+        let currentBallSpeed; 
+        let currentPaddleSpeed; 
+        let currentDifficulty; // To store the active difficulty
+
+        let centerX;
+        let centerY;
+
+        // Ball properties
+        let ball = {
+            x: 0,
+            y: 0,
+            dx: 0,
+            dy: 0,
+            radius: BALL_RADIUS,
+            lastQuadrant: -1,
+            isNudgedHorizontal: false, // Flag to prevent multiple nudges per crossing
+            isNudgedVertical: false,    // Flag to prevent multiple nudges per crossing
+            trail: [], // Store ball trail points
+            trailColor: '#FF8C00', // Default ball trail color
+            color: '#FF8C00', // Default ball color
+            isVisible: true // For Ball Flicker power-down and Ball Appear/Disappear
+        };
+
+        // Paddle properties
+        // Re-ordered QUADRANT_ANGLES for intuitive indexing (Q1=index 0, Q2=index 1, etc.)
+        const QUADRANT_ANGLES = [
+            // Index 0: Q1 (Top-Left)
+            { start: Math.PI / 4, end: 3 * Math.PI / 4, scoreId: 'top-left', controlKeys: ['w', 's'], label: 'Q1', paddleIndex: 0 },
+            // Index 1: Q2 (Top-Right)
+            { start: -Math.PI / 4, end: Math.PI / 4, scoreId: 'top-right', controlKeys: ['ArrowUp', 'ArrowDown'], label: 'Q2', paddleIndex: 1 }, 
+            // Index 2: Q3 (Bottom-Right)
+            { start: 5 * Math.PI / 4, end: 7 * Math.PI / 4, scoreId: 'bottom-right', controlKeys: ['ArrowUp', 'ArrowDown'], label: 'Q3', paddleIndex: 2 },
+            // Index 3: Q4 (Bottom-Left)
+            { start: 3 * Math.PI / 4, end: 5 * Math.PI / 4, scoreId: 'bottom-left', controlKeys: ['w', 's'], label: 'Q4', paddleIndex: 3 }
+        ];
+
+
+        let paddles = [];
+
+        let activePaddleIndex = -1;
+        let keyState = {};
+        let gameRunning = false;
+        let gamePaused = false; 
+        let animationFrameId; 
+        let gameOverPaddleMissedCount = 0;
+        let lives = 3; 
+
+        let hitsForSpeedIncrease = 0; 
+        let hitsForNudgeIncrease = 0; 
+        let powerUps = []; 
+        let powerUpSpawnTimer; 
+        let activePowerUpEffects = {
+            paddleGrow: null, 
+            paddleShrink: null,
+            slowMotion: null,
+            teleporta: null, 
+            ballFlicker: null,
+            invertControls: null, 
+            ballAppear: null   // Renamed from ballDisappear
+        };
+
+        // Hazard arrays
+        let obstacles = [];
+        let mines = [];
+        let obstacleSpawnTimer;
+        let mineSpawnTimer;
+
+        // Flag for inverted controls
+        let areControlsInverted = false;
+
+
+        // DOM elements
+        const mainMenu = document.getElementById('mainMenu');
+        const basicBtn = document.getElementById('basicBtn'); 
+        const easyBtn = document.getElementById('easyBtn');
+        const mediumBtn = document.getElementById('mediumBtn');
+        const hardBtn = document.getElementById('hardBtn');
+        const stealthBtn = document.getElementById('stealthBtn'); 
+        const chaosBtn = document.getElementById('chaosBtn'); 
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const restartButton = document.getElementById('restartButton');
+        const mainMenuButton = document.getElementById('mainMenuButton'); 
+        const geminiInsightButton = document.getElementById('geminiInsightButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const gameContainer = document.querySelector('.game-container');
+        const scoreTopRight = document.getElementById('score-top-right');
+        const scoreBottomRight = document.getElementById('score-bottom-right');
+        const scoreTopLeft = document.getElementById('score-top-left');
+        const scoreBottomLeft = document.getElementById('score-bottom-left');
+        const pauseButton = document.getElementById('pauseButton'); 
+        const resumeButton = document.getElementById('resumeButton'); 
+
+
+        /**
+         * Adjusts canvas size and game parameters based on container size.
+         */
+        function adjustCanvasSize() {
+            const viewportMinDim = Math.min(window.innerWidth, window.innerHeight);
+            CANVAS_SIZE = viewportMinDim * 0.75; 
+            CANVAS_SIZE = Math.max(300, CANVAS_SIZE);
+            
+            canvas.width = CANVAS_SIZE;
+            canvas.height = CANVAS_SIZE;
+
+            centerX = canvas.width / 2;
+            centerY = canvas.height / 2;
+
+            const BORDER_AND_PADDLE_AREA_WIDTH = 50; 
+            CIRCLE_RADIUS = CANVAS_SIZE / 2 - BORDER_AND_PADDLE_AREA_WIDTH / 2; 
+            PADDLE_RADIUS = CIRCLE_RADIUS + PADDLE_THICKNESS / 2 + 5; 
+
+            gameContainer.style.width = `${CANVAS_SIZE}px`;
+            gameContainer.style.height = `${CANVAS_SIZE}px`;
+
+            const margin = 20; 
+            scoreTopRight.style.top = `${margin}px`;
+            scoreTopRight.style.right = `${margin}px`;
+            scoreBottomRight.style.bottom = `${margin}px`;
+            scoreBottomRight.style.right = `${margin}px`;
+            scoreTopLeft.style.top = `${margin}px`;
+            scoreTopLeft.style.left = `${margin}px`;
+            scoreBottomLeft.style.bottom = `${margin}px`;
+            scoreBottomLeft.style.left = `${margin}px`;
+
+            livesDisplay.style.bottom = `${margin}px`; 
+            livesDisplay.style.top = 'auto'; 
+            pauseButton.style.top = `${margin}px`;
+        }
+
+        /**
+         * Initializes the game state, ball, and paddles.
+         * @param {string} difficulty - The selected difficulty ('basic', 'easy', 'medium', 'hard', 'stealth', 'chaos').
+         */
+        function initGame(difficulty) {
+            // Cancel any existing animation frame to prevent multiple loops
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            // Clear any active power-up effects and timers
+            clearPowerUpEffects();
+            if (powerUpSpawnTimer) {
+                clearInterval(powerUpSpawnTimer);
+            }
+            if (obstacleSpawnTimer) { // Clear obstacle timer
+                clearInterval(obstacleSpawnTimer);
+            }
+            if (mineSpawnTimer) { // Clear mine timer
+                clearInterval(mineSpawnTimer);
+            }
+            powerUps = []; // Clear power-ups from previous round
+            obstacles = []; // Clear obstacles
+            mines = []; // Clear mines
+
+            currentDifficulty = difficulty; // Set current difficulty
+            adjustCanvasSize(); 
+
+            currentBallSpeed = BALL_SPEEDS[difficulty];
+            currentPaddleSpeed = PADDLE_SPEEDS[difficulty];
+            currentNudgeAngle = LINE_DEFLECTION_ANGLES[difficulty]; // Initialize dynamic nudge with base difficulty nudge
+
+            lives = LIVES_BY_DIFFICULTY[difficulty]; 
+
+            ball.x = centerX;
+            ball.y = centerY;
+            ball.dx = 0; 
+            ball.dy = 0; 
+            ball.lastQuadrant = -1;
+            ball.isNudgedHorizontal = false; // Reset nudge flags
+            ball.isNudgedVertical = false;   // Reset nudge flags
+            ball.trail = []; // Clear ball trail
+            
+            // Set ball and trail color based on mode
+            ball.trailColor = (currentDifficulty === 'stealth' || currentDifficulty === 'chaos') ? '#FF8C00' : '#FF8C00'; // Orange trail for stealth/chaos, default orange for others
+            ball.color = (currentDifficulty === 'chaos') ? '#000000' : '#FF8C00'; // Black for chaos, orange for others
+            ball.isVisible = true; // Ball always starts visible
+
+            areControlsInverted = false; // Reset controls inversion at game start
+
+            gameOverPaddleMissedCount = 0; 
+            hitsForSpeedIncrease = 0; // Reset hit counter for ball speed
+            hitsForNudgeIncrease = 0; // Reset hit counter for nudge angle
+            updateLivesDisplay();
+
+            let angle = Math.random() * Math.PI * 2; 
+            ball.dx = currentBallSpeed * Math.cos(angle);
+            ball.dy = currentBallSpeed * Math.sin(angle);
+            
+            console.log("Ball reset to:", ball.x, ball.y, "with speed:", currentBallSpeed, "dx:", ball.dx, "dy:", ball.dy);
+
+
+            paddles = [];
+            const quadrantAngularSpan = Math.PI / 2; 
+            const paddleAngularSpan = quadrantAngularSpan * PADDLE_ARC_PERCENTAGE;
+
+            // Initialize paddles based on the screenshot (centered on dashed lines)
+            QUADRANT_ANGLES.forEach((q) => {
+                let initialAngle;
+                switch (q.paddleIndex) {
+                    case 0: // Q1 (Top-Left) - visually on top vertical line
+                        initialAngle = Math.PI / 2; // 90 degrees
+                        break;
+                    case 1: // Q2 (Top-Right) - visually on right horizontal line
+                        initialAngle = 0; // 0 degrees
+                        break;
+                    case 2: // Q3 (Bottom-Right) - visually on bottom vertical line
+                        initialAngle = 3 * Math.PI / 2; // 270 degrees
+                        break;
+                    case 3: // Q4 (Bottom-Left) - visually on left horizontal line
+                        initialAngle = Math.PI; // 180 degrees
+                        break;
+                }
+
+                paddles.push({
+                    angle: initialAngle,
+                    angularSpan: paddleAngularSpan,
+                    originalAngularSpan: paddleAngularSpan, // Store original for power-ups
+                    scorePassed: 0,
+                    scoreMissed: 0,
+                    active: false,
+                    scoreId: q.scoreId,
+                    controlKeys: q.controlKeys,
+                    label: q.label 
+                });
+            });
+
+            activePaddleIndex = -1;
+            gameRunning = true;
+            gamePaused = false; 
+            pauseButton.innerText = 'Pause'; 
+            pauseButton.style.display = 'block'; 
+            hideMessage(); // Use hideMessage to clear the messageBox
+            mainMenu.style.display = 'none';
+            livesDisplay.style.display = 'block';
+            updateScoreDisplays();
+
+            // Start power-up and hazard spawning based on difficulty
+            if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+            if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+            if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+
+            // Power-ups spawning logic
+            if (currentDifficulty !== 'basic') {
+                powerUpSpawnTimer = setInterval(spawnPowerUp, POWER_UP_SPAWN_INTERVAL);
+            }
+
+            // Static Obstacles spawning logic
+            if (currentDifficulty !== 'basic') { 
+                obstacleSpawnTimer = setInterval(spawnObstacle, OBSTACLE_SPAWN_INTERVAL);
+            }
+            
+            // Moving Mines spawning logic
+            if (currentDifficulty === 'easy' || currentDifficulty === 'medium' || currentDifficulty === 'hard' || currentDifficulty === 'chaos') { 
+                mineSpawnTimer = setInterval(spawnMine, MINE_SPAWN_INTERVAL);
+            }
+        
+            gameLoop(); 
+        }
+
+        /**
+         * Spawns a random power-up on the canvas.
+         */
+        function spawnPowerUp() {
+            if (!gameRunning || gamePaused || currentDifficulty === 'basic') return; // No power-ups in Basic mode
+
+            let typesToSpawn = [];
+            if (currentDifficulty === 'stealth') {
+                typesToSpawn = ['teleporta', 'ballFlicker']; 
+            } else if (currentDifficulty === 'chaos') {
+                typesToSpawn = ['paddleGrow', 'paddleShrink', 'slowMotion', 'extraLife', 'teleporta', 'ballFlicker', 'invertControls', 'ballAppear']; // Renamed type
+            } else { // Easy, Medium, Hard modes
+                typesToSpawn = ['paddleGrow', 'paddleShrink', 'slowMotion', 'extraLife', 'invertControls']; 
+            }
+
+            if (typesToSpawn.length === 0) return; // No power-ups to spawn
+
+            const randomType = typesToSpawn[Math.floor(Math.random() * typesToSpawn.length)];
+
+            // Random position within a safe area of the circle
+            const maxSpawnRadius = CIRCLE_RADIUS * 0.7; // Don't spawn too close to edges
+            const spawnAngle = Math.random() * Math.PI * 2;
+            const spawnDistance = Math.random() * maxSpawnRadius;
+
+            const x = centerX + spawnDistance * Math.cos(spawnAngle);
+            const y = centerY + spawnDistance * Math.sin(spawnAngle);
+
+            powerUps.push({
+                x: x,
+                y: y,
+                type: randomType,
+                radius: POWER_UP_RADIUS,
+                color: getPowerUpColor(randomType)
+            });
+        }
+
+        /**
+         * Returns the color for a given power-up type.
+         * @param {string} type - The type of power-up.
+         * @returns {string} The color string.
+         */
+        function getPowerUpColor(type) {
+            switch (type) {
+                case 'paddleGrow': return '#00FF00'; // Green
+                case 'paddleShrink': return '#FF0000'; // Red
+                case 'slowMotion': return '#00FFFF'; // Cyan
+                case 'extraLife': return '#FFD700'; // Gold
+                case 'teleporta': return '#C0C0C0'; // Silver for Teleporta
+                case 'ballFlicker': return '#8A2BE2'; // BlueViolet for Ball Flicker
+                case 'invertControls': return '#A52A2A'; // Brown for Invert Controls
+                case 'ballAppear': return '#F4A460'; // Sandy Brown for Ball Appear
+                default: return '#FFFFFF';
+            }
+        }
+
+        /**
+         * Spawns a static obstacle.
+         */
+        function spawnObstacle() {
+            if (!gameRunning || gamePaused || currentDifficulty === 'basic') return; // No obstacles in Basic mode
+
+            const maxSpawnRadius = CIRCLE_RADIUS * 0.6; // Spawn away from edges and center lines
+            const spawnAngle = Math.random() * Math.PI * 2;
+            const spawnDistance = Math.random() * maxSpawnRadius;
+
+            const x = centerX + spawnDistance * Math.cos(spawnAngle);
+            const y = centerY + spawnDistance * Math.sin(spawnAngle);
+
+            obstacles.push({
+                x: x,
+                y: y,
+                radius: OBSTACLE_RADIUS,
+                spawnTime: Date.now(),
+                color: '#FFFFFF' // White for static obstacles
+            });
+        }
+
+        /**
+         * Spawns a moving mine.
+         */
+        function spawnMine() {
+            if (!gameRunning || gamePaused || currentDifficulty === 'basic' || currentDifficulty === 'stealth') return; // Only Easy, Medium, Hard, Chaos
+
+            const maxSpawnRadius = CIRCLE_RADIUS * 0.6; 
+            const spawnAngle = Math.random() * Math.PI * 2;
+            const spawnDistance = Math.random() * maxSpawnRadius;
+
+            const x = centerX + spawnDistance * Math.cos(spawnAngle);
+            const y = centerY + spawnDistance * Math.sin(spawnAngle);
+
+            const directionAngle = Math.random() * Math.PI * 2;
+            const dx = MINE_SPEED * Math.cos(directionAngle);
+            const dy = MINE_SPEED * Math.sin(directionAngle);
+
+            mines.push({
+                x: x,
+                y: y,
+                radius: MINE_RADIUS,
+                dx: dx,
+                dy: dy,
+                spawnTime: Date.now(),
+                color: '#FF4500' // OrangeRed
+            });
+        }
+
+
+        /**
+         * Applies the effect of a collected power-up.
+         * @param {object} powerUp - The power-up object.
+         */
+        function applyPowerUpEffect(powerUp) {
+            switch (powerUp.type) {
+                case 'paddleGrow':
+                    if (activePaddleIndex !== -1) {
+                        const paddle = paddles[activePaddleIndex];
+                        // Clear existing effect if any
+                        if (activePowerUpEffects.paddleGrow) {
+                            clearTimeout(activePowerUpEffects.paddleGrow.timerId);
+                            paddle.angularSpan = paddle.originalAngularSpan; // Revert before applying new
+                        }
+                        paddle.angularSpan = Math.min(Math.PI / 2 * 0.2, paddle.originalAngularSpan * 1.5); // Max 20% of quadrant, or 1.5x original
+                        activePowerUpEffects.paddleGrow = { paddleIndex: activePaddleIndex, originalAngularSpan: paddle.originalAngularSpan, timerId: setTimeout(() => revertPaddleGrow(paddle), POWER_UP_DURATION) };
+                    }
+                    break;
+                case 'paddleShrink':
+                    if (activePaddleIndex !== -1) {
+                        const paddle = paddles[activePaddleIndex];
+                        if (activePowerUpEffects.paddleShrink) {
+                            clearTimeout(activePowerUpEffects.paddleShrink.timerId);
+                            paddle.angularSpan = paddle.originalAngularSpan;
+                        }
+                        paddle.angularSpan = Math.max(Math.PI / 2 * 0.05, paddle.originalAngularSpan * 0.5); // Min 5% of quadrant, or 0.5x original
+                        activePowerUpEffects.paddleShrink = { paddleIndex: activePaddleIndex, originalAngularSpan: paddle.originalAngularSpan, timerId: setTimeout(() => revertPaddleShrink(paddle), POWER_UP_DURATION) };
+                    }
+                    break;
+                case 'slowMotion':
+                    if (activePowerUpEffects.slowMotion) {
+                        clearTimeout(activePowerUpEffects.slowMotion.timerId);
+                        currentBallSpeed = activePowerUpEffects.slowMotion.originalBallSpeed; // Revert before applying new
+                    }
+                    activePowerUpEffects.slowMotion = { originalBallSpeed: currentBallSpeed, timerId: setTimeout(revertSlowMotion, POWER_UP_DURATION) };
+                    currentBallSpeed *= 0.5; // Half speed
+                    // Recalculate dx and dy based on new speed
+                    const currentSpeedMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                    if (currentSpeedMagnitude > 0) {
+                        ball.dx = (ball.dx / currentSpeedMagnitude) * currentBallSpeed;
+                        ball.dy = (ball.dy / currentSpeedMagnitude) * currentBallSpeed;
+                    }
+                    break;
+                case 'extraLife':
+                    lives++;
+                    updateLivesDisplay();
+                    break;
+                case 'teleporta':
+                    // Generate a random position within the main game circle
+                    const randomAngle = Math.random() * Math.PI * 2;
+                    // Ensure the ball spawns away from the very edge
+                    const randomDistance = Math.random() * (CIRCLE_RADIUS - ball.radius - PADDLE_THICKNESS); 
+
+                    ball.x = centerX + randomDistance * Math.cos(randomAngle);
+                    ball.y = centerY + randomDistance * Math.sin(randomAngle);
+
+                    // Give it a new random direction
+                    const newBallDirectionAngle = Math.random() * Math.PI * 2;
+                    ball.dx = currentBallSpeed * Math.cos(newBallDirectionAngle);
+                    ball.dy = currentBallSpeed * Math.sin(newBallDirectionAngle);
+
+                    // Teleportation is instantaneous, so clear the effect immediately after it happens
+                    activePowerUpEffects.teleporta = { timerId: setTimeout(() => { activePowerUpEffects.teleporta = null; }, 100) }; 
+                    break;
+                case 'ballFlicker':
+                    if (activePowerUpEffects.ballFlicker) {
+                        clearInterval(activePowerUpEffects.ballFlicker.timerId);
+                        clearTimeout(activePowerUpEffects.ballFlicker.timeoutId);
+                        ball.isVisible = true; // Ensure ball is visible before applying new effect
+                    }
+                    // Start flickering
+                    const flickerIntervalId = setInterval(() => {
+                        ball.isVisible = !ball.isVisible;
+                    }, BALL_FLICKER_INTERVAL);
+                    activePowerUpEffects.ballFlicker = { timerId: flickerIntervalId, timeoutId: setTimeout(revertBallFlicker, POWER_UP_DURATION) };
+                    break;
+                case 'invertControls':
+                    if (activePowerUpEffects.invertControls) {
+                        clearTimeout(activePowerUpEffects.invertControls.timerId);
+                        areControlsInverted = false; // Revert before applying new
+                    }
+                    areControlsInverted = true;
+                    activePowerUpEffects.invertControls = { timerId: setTimeout(revertInvertControls, INVERT_CONTROLS_DURATION) };
+                    break;
+                case 'ballAppear': // Renamed from ballDisappear
+                    // Clear any existing effects for this power-up
+                    if (activePowerUpEffects.ballAppear) {
+                        clearTimeout(activePowerUpEffects.ballAppear.colorTimerId);
+                        // Ensure ball color reverts to default black if a new power-up is collected while orange
+                        if (currentDifficulty === 'chaos' && ball.color === '#FFA500') {
+                            ball.color = '#000000';
+                        }
+                    }
+
+                    // Ball is always visible, so no change to ball.isVisible
+                    // Only apply color change in Chaos mode
+                    if (currentDifficulty === 'chaos') {
+                        ball.color = '#FFA500'; // Change to orange
+
+                        // Set a timer to revert ball color back to black
+                        activePowerUpEffects.ballAppear = {
+                            colorTimerId: setTimeout(() => {
+                                ball.color = '#000000'; // Change back to black
+                                activePowerUpEffects.ballAppear = null; // Clear the effect completely
+                            }, BALL_APPEAR_COLOR_DURATION) // Orange for 5000ms
+                        };
+                    } else {
+                        // If not Chaos mode, no effect
+                        activePowerUpEffects.ballAppear = null;
+                    }
+                    break;
+            }
+        }
+
+        /** Reverts paddle grow effect. */
+        function revertPaddleGrow(paddle) {
+            paddle.angularSpan = paddle.originalAngularSpan;
+            activePowerUpEffects.paddleGrow = null;
+        }
+
+        /** Reverts paddle shrink effect. */
+        function revertPaddleShrink(paddle) {
+            paddle.angularSpan = paddle.originalAngularSpan;
+            activePowerUpEffects.paddleShrink = null;
+        }
+
+        /** Reverts slow motion effect. */
+        function revertSlowMotion() {
+            if (activePowerUpEffects.slowMotion) {
+                currentBallSpeed = BALL_SPEEDS[currentDifficulty]; // Revert to base difficulty speed
+                // Recalculate dx and dy based on original speed
+                const currentSpeedMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy + 0.000001); // Add small epsilon to avoid division by zero
+                if (currentSpeedMagnitude > 0) {
+                    ball.dx = (ball.dx / currentSpeedMagnitude) * currentBallSpeed;
+                    ball.dy = (ball.dy / currentSpeedMagnitude) * currentBallSpeed;
+                }
+                activePowerUpEffects.slowMotion = null;
+            }
+        }
+
+        /** Clears any active teleporta effect. */
+        function revertTeleporta() {
+            if (activePowerUpEffects.teleporta) {
+                clearTimeout(activePowerUpEffects.teleporta.timerId);
+                activePowerUpEffects.teleporta = null;
+            }
+        }
+
+        /** Reverts ball flicker effect. */
+        function revertBallFlicker() {
+            if (activePowerUpEffects.ballFlicker) {
+                clearInterval(activePowerUpEffects.ballFlicker.timerId);
+                clearTimeout(activePowerUpEffects.ballFlicker.timeoutId);
+                ball.isVisible = true; // Ensure ball is visible after effect ends
+                activePowerUpEffects.ballFlicker = null;
+            }
+        }
+
+        /** Reverts invert controls effect. */
+        function revertInvertControls() {
+            areControlsInverted = false;
+            activePowerUpEffects.invertControls = null;
+        }
+
+        /** Reverts ball appear effect. */
+        function revertBallAppear() { // Renamed from revertBallDisappear
+            ball.isVisible = true; // Always visible
+            if (currentDifficulty === 'chaos') {
+                ball.color = '#000000'; // Reset to black for chaos
+            } else {
+                ball.color = '#FF8C00'; // Default orange for other modes
+            }
+            // Ensure any active timers are cleared
+            if (activePowerUpEffects.ballAppear) {
+                clearTimeout(activePowerUpEffects.ballAppear.colorTimerId);
+                activePowerUpEffects.ballAppear = null;
+            }
+        }
+
+        /** Clears all active power-up effects. */
+        function clearPowerUpEffects() {
+            if (activePowerUpEffects.paddleGrow) {
+                clearTimeout(activePowerUpEffects.paddleGrow.timerId);
+                // Find the correct paddle to revert, as activePaddleIndex might have changed
+                const affectedPaddle = paddles.find(p => p.paddleIndex === activePowerUpEffects.paddleGrow.paddleIndex);
+                if (affectedPaddle) affectedPaddle.angularSpan = affectedPaddle.originalAngularSpan;
+                activePowerUpEffects.paddleGrow = null;
+            }
+            if (activePowerUpEffects.paddleShrink) {
+                clearTimeout(activePowerUpEffects.paddleShrink.timerId);
+                const affectedPaddle = paddles.find(p => p.paddleIndex === activePowerUpEffects.paddleShrink.paddleIndex);
+                if (affectedPaddle) affectedPaddle.angularSpan = affectedPaddle.originalAngularSpan; // Revert to original, not current
+                activePowerUpEffects.paddleShrink = null;
+            }
+            if (activePowerUpEffects.slowMotion) {
+                clearTimeout(activePowerUpEffects.slowMotion.timerId);
+                currentBallSpeed = BALL_SPEEDS[currentDifficulty]; // Revert to base difficulty speed
+                // Recalculate dx and dy based on original speed
+                const currentSpeedMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy + 0.000001); // Add small epsilon
+                if (currentSpeedMagnitude > 0) {
+                    ball.dx = (ball.dx / currentSpeedMagnitude) * currentBallSpeed;
+                    ball.dy = (ball.dy / currentSpeedMagnitude) * currentBallSpeed;
+                }
+                activePowerUpEffects.slowMotion = null;
+            }
+            revertTeleporta(); 
+            revertBallFlicker(); 
+            revertInvertControls(); 
+            // Ensure ball is visible and correct color if game resets while it's orange
+            if (activePowerUpEffects.ballAppear) {
+                clearTimeout(activePowerUpEffects.ballAppear.colorTimerId);
+                ball.isVisible = true; // Ensure visible
+                if (currentDifficulty === 'chaos') {
+                    ball.color = '#000000'; // Reset to black for chaos
+                } else {
+                    ball.color = '#FF8C00'; // Default orange for other modes
+                }
+                activePowerUpEffects.ballAppear = null;
+            }
+        }
+
+
+        /**
+         * Draws the game elements on the canvas.
+         */
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, CIRCLE_RADIUS, 0, Math.PI * 2); 
+            ctx.fillStyle = '#000';
+            ctx.fill();
+            ctx.closePath();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, CIRCLE_RADIUS + 5, 0, Math.PI * 2); 
+            ctx.strokeStyle = '#FFA500';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.closePath();
+
+            ctx.strokeStyle = '#FFF';
+            ctx.lineWidth = 5;
+            ctx.setLineDash([10, 10]); 
+            ctx.beginPath();
+            ctx.moveTo(-CANVAS_SIZE / 2, 0); ctx.lineTo(CANVAS_SIZE / 2, 0); 
+            ctx.moveTo(0, -CANVAS_SIZE / 2); ctx.lineTo(0, CANVAS_SIZE / 2); 
+            ctx.stroke();
+            ctx.closePath();
+            ctx.setLineDash([]); 
+
+            // Draw paddles
+            paddles.forEach((paddle, index) => {
+                ctx.beginPath();
+                let startAngle = paddle.angle - paddle.angularSpan / 2;
+                let endAngle = paddle.angle + paddle.angularSpan / 2;
+
+                ctx.arc(0, 0, PADDLE_RADIUS, startAngle, endAngle);
+                ctx.strokeStyle = (index === activePaddleIndex) ? '#FFFF00' : '#FFD700';
+                ctx.lineWidth = (index === activePaddleIndex) ? PADDLE_THICKNESS + 5 : PADDLE_THICKNESS;
+                ctx.stroke();
+                ctx.closePath();
+            });
+
+            // Draw Ball Trail
+            for (let i = 0; i < ball.trail.length; i++) {
+                const trailPoint = ball.trail[i];
+                const alpha = TRAIL_FADE_START_ALPHA * (i / MAX_TRAIL_LENGTH); // Fade out towards the tail
+                ctx.beginPath();
+                ctx.arc(trailPoint.x - centerX, trailPoint.y - centerY, BALL_RADIUS * (i / MAX_TRAIL_LENGTH), 0, Math.PI * 2); // Smaller towards tail
+                ctx.fillStyle = `rgba(${parseInt(ball.trailColor.substring(1,3), 16)}, ${parseInt(ball.trailColor.substring(3,5), 16)}, ${parseInt(ball.trailColor.substring(5,7), 16)}, ${alpha})`; 
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            // Draw the ball only if it's visible
+            if (ball.isVisible) {
+                ctx.beginPath();
+                ctx.arc(ball.x - centerX, ball.y - centerY, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ball.color; 
+                ctx.fill();
+                ctx.closePath();
+            }
+
+            // Draw Power-Ups
+            powerUps.forEach(pu => {
+                ctx.beginPath();
+                ctx.arc(pu.x - centerX, pu.y - centerY, pu.radius, 0, Math.PI * 2);
+                ctx.fillStyle = pu.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+
+            // Draw Static Obstacles
+            obstacles.forEach(obstacle => {
+                ctx.beginPath();
+                ctx.arc(obstacle.x - centerX, obstacle.y - centerY, obstacle.radius, 0, Math.PI * 2);
+                ctx.fillStyle = obstacle.color;
+                ctx.fill();
+                ctx.closePath();
+            });
+
+            // Draw Moving Mines
+            mines.forEach(mine => {
+                ctx.beginPath();
+                ctx.arc(mine.x - centerX, mine.y - centerY, mine.radius, 0, Math.PI * 2);
+                ctx.fillStyle = mine.color;
+                ctx.fill();
+                ctx.closePath();
+                // Draw a cross on the mine for visual distinction
+                ctx.strokeStyle = '#FFFFFF'; // White cross
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(mine.x - centerX - mine.radius * 0.5, mine.y - centerY - mine.radius * 0.5);
+                ctx.lineTo(mine.x - centerX + mine.radius * 0.5, mine.y - centerY + mine.radius * 0.5);
+                ctx.moveTo(mine.x - centerX + mine.radius * 0.5, mine.y - centerY - mine.radius * 0.5);
+                ctx.lineTo(mine.x - centerX - mine.radius * 0.5, mine.y - centerY + mine.radius * 0.5);
+                ctx.stroke();
+                ctx.closePath();
+            });
+
+
+            // Draw Quadrant Labels
+            ctx.fillStyle = '#FFFFFF'; // White color for labels
+            ctx.font = `${CANVAS_SIZE * 0.04}px Inter, sans-serif`; // Responsive font size for Q-labels
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Q1 (Top-Left)
+            ctx.fillText('Q1', -CANVAS_SIZE * 0.3, -CANVAS_SIZE * 0.3);
+            // Q2 (Top-Right)
+            ctx.fillText('Q2', CANVAS_SIZE * 0.3, -CANVAS_SIZE * 0.3);
+            // Q3 (Bottom-Right)
+            ctx.fillText('Q3', CANVAS_SIZE * 0.3, CANVAS_SIZE * 0.3);
+            // Q4 (Bottom-Left)
+            ctx.fillText('Q4', -CANVAS_SIZE * 0.3, CANVAS_SIZE * 0.3);
+
+
+            ctx.restore();
+        }
+
+        /**
+         * Helper function to normalize an angle to be between 0 and 2PI.
+         */
+        function normalizeAngle(angle) {
+            return (angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        }
+
+        /**
+         * Helper function to check if an angle is within a paddle's arc.
+         */
+        function isAngleInPaddleArc(ballAngle, paddle) {
+            let paddleStartAngle = normalizeAngle(paddle.angle - paddle.angularSpan / 2);
+            let paddleEndAngle = normalizeAngle(paddle.angle + paddle.angularSpan / 2);
+            let normalizedBallAngle = normalizeAngle(ballAngle);
+
+            if (paddleStartAngle > paddleEndAngle) { 
+                return normalizedBallAngle >= paddleStartAngle || normalizedBallAngle <= paddleEndAngle;
+            } else {
+                return normalizedBallAngle >= paddleStartAngle && normalizedBallAngle <= paddleEndAngle;
+            }
+        }
+
+        /**
+         * Checks for circular collision between two circles.
+         * @param {object} c1 - First circle object with x, y, radius.
+         * @param {object} c2 - Second circle object with x, y, radius.
+         * @returns {boolean} True if circles are colliding, false otherwise.
+         */
+        function checkCircleCollision(c1, c2) {
+            const dx = c1.x - c2.x;
+            const dy = c1.y - c2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < c1.radius + c2.radius;
+        }
+
+        /**
+         * Resolves collision between a ball and a circular obstacle.
+         * @param {object} ball - The ball object.
+         * @param {object} obstacle - The obstacle object.
+         */
+        function resolveCircleCollision(ball, obstacle) {
+            const dx = ball.x - obstacle.x;
+            const dy = ball.y - obstacle.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const overlap = (ball.radius + obstacle.radius) - distance;
+
+            if (overlap > 0) {
+                // Move ball out of overlap
+                const normalX = dx / distance;
+                const normalY = dy / distance;
+                ball.x += normalX * overlap;
+                ball.y += normalY * overlap;
+
+                // Reflect ball velocity
+                const dotProduct = ball.dx * normalX + ball.dy * normalY;
+                ball.dx -= 2 * dotProduct * normalX;
+                ball.dy -= 2 * dotProduct * normalY;
+            }
+        }
+
+        /**
+         * Updates the game state (ball position, collisions, paddle movement).
+         */
+        function update() {
+            if (!gameRunning || gamePaused) return; 
+
+            const currentTime = Date.now();
+
+            // Store previous ball position for line crossing detection
+            const prevBallX = ball.x;
+            const prevBallY = ball.y;
+
+            // Move ball
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Add current ball position to trail
+            ball.trail.push({ x: ball.x, y: ball.y });
+            if (ball.trail.length > MAX_TRAIL_LENGTH) {
+                ball.trail.shift(); // Remove oldest point
+            }
+
+            // --- CORRECTED: Change path when crossing center lines ---
+            // Define a small threshold around the center lines to detect crossing
+            const lineThreshold = 5; // Fixed small pixel threshold for more stable detection
+
+            // Horizontal line (Y-axis crossing)
+            if ((prevBallY < centerY && ball.y >= centerY) || (prevBallY > centerY && ball.y <= centerY)) {
+                if (Math.abs(ball.x - centerX) < CIRCLE_RADIUS && !ball.isNudgedHorizontal) {
+                    console.log("Nudging horizontally in", currentDifficulty, "mode. Nudge angle:", currentNudgeAngle);
+                    const currentAngle = Math.atan2(ball.dy, ball.dx);
+                    // Nudge angle is now applied relative to the current direction
+                    let newAngle = currentAngle + (Math.random() * 2 - 1) * currentNudgeAngle; 
+
+                    // Recalculate dx and dy based on new angle and current speed
+                    const currentSpeedMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                    if (currentSpeedMagnitude > 0) {
+                        ball.dx = Math.cos(newAngle) * currentSpeedMagnitude;
+                        ball.dy = Math.sin(newAngle) * currentSpeedMagnitude;
+                    } else {
+                        // Handle case where ball is stationary
+                        ball.dx = Math.cos(newAngle) * currentBallSpeed;
+                        ball.dy = Math.sin(newAngle) * currentBallSpeed;
+                    }
+                    ball.isNudgedHorizontal = true;
+                }
+            } else {
+                if (Math.abs(ball.y - centerY) > lineThreshold) {
+                    ball.isNudgedHorizontal = false;
+                }
+            }
+
+            // Vertical line (X-axis crossing)
+            if ((prevBallX < centerX && ball.x >= centerX) || (prevBallX > centerX && ball.x <= centerX)) {
+                if (Math.abs(ball.y - centerY) < CIRCLE_RADIUS && !ball.isNudgedVertical) {
+                    console.log("Nudging vertically in", currentDifficulty, "mode. Nudge angle:", currentNudgeAngle);
+                    const currentAngle = Math.atan2(ball.dy, ball.dx);
+                    let newAngle = currentAngle + (Math.random() * 2 - 1) * currentNudgeAngle;
+
+                    const currentSpeedMagnitude = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                    if (currentSpeedMagnitude > 0) {
+                        ball.dx = Math.cos(newAngle) * currentSpeedMagnitude;
+                        ball.dy = Math.sin(newAngle) * currentSpeedMagnitude;
+                    } else {
+                        ball.dx = Math.cos(newAngle) * currentBallSpeed;
+                        ball.dy = Math.sin(newAngle) * currentBallSpeed;
+                    }
+                    ball.isNudgedVertical = true;
+                }
+            } else {
+                if (Math.abs(ball.x - centerX) > lineThreshold) {
+                    ball.isNudgedVertical = false;
+                }
+            }
+            // --- End Corrected Deflection Logic ---
+
+
+            const distFromCenter = Math.sqrt(Math.pow(ball.x - centerX, 2) + Math.pow(ball.y - centerY, 2));
+            let ballAngle = Math.atan2(ball.y - centerY, ball.x - centerX);
+            ballAngle = normalizeAngle(ballAngle); 
+
+            let hitPaddle = false;
+
+            const paddleInnerEdgeRadial = PADDLE_RADIUS - PADDLE_THICKNESS / 2;
+            const ballOuterEdgeRadial = distFromCenter + ball.radius;
+
+            if (activePaddleIndex !== -1) {
+                const activePaddle = paddles[activePaddleIndex];
+                
+                if (ballOuterEdgeRadial >= paddleInnerEdgeRadial) {
+                    if (isAngleInPaddleArc(ballAngle, activePaddle)) {
+                        hitPaddle = true;
+                        
+                        const penetration = ballOuterEdgeRadial - paddleInnerEdgeRadial;
+
+                        const normalX = (ball.x - centerX) / distFromCenter;
+                        const normalY = (ball.y - centerY) / distFromCenter;
+                        
+                        ball.x -= normalX * penetration; 
+                        ball.y -= normalY * penetration;
+
+                        const dotProduct = ball.dx * normalX + ball.dy * normalY;
+                        ball.dx -= 2 * dotProduct * normalX;
+                        ball.dy -= 2 * dotProduct * normalY;
+
+                        ball.x += normalX * 0.1; 
+                        ball.y += normalY * 0.1;
+
+                        activePaddle.scorePassed++; 
+                        ball.lastQuadrant = activePaddleIndex; 
+                        
+                        // Dynamic ball speed increase (after every hit)
+                        hitsForSpeedIncrease++;
+                        if (hitsForSpeedIncrease >= SPEED_INCREASE_THRESHOLD) {
+                            currentBallSpeed += SPEED_INCREASE_INCREMENT;
+                            // Re-normalize ball velocity to new speed
+                            const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                            if (currentSpeed > 0) {
+                                ball.dx = (ball.dx / currentSpeed) * currentBallSpeed;
+                                ball.dy = (ball.dy / currentSpeed) * currentBallSpeed;
+                            }
+                            hitsForSpeedIncrease = 0; // Reset counter for next hit
+                        }
+
+                        // Dynamic nudge angle increase
+                        hitsForNudgeIncrease++;
+                        if (hitsForNudgeIncrease >= NUDGE_INCREASE_THRESHOLD) { 
+                            currentNudgeAngle = Math.min(MAX_NUDGE_ANGLE, currentNudgeAngle + NUDGE_INCREASE_INCREMENT);
+                            hitsForNudgeIncrease = 0; // Reset counter
+                        }
+                    }
+                }
+            }
+
+            // Power-up collision detection
+            for (let i = powerUps.length - 1; i >= 0; i--) {
+                const pu = powerUps[i];
+                const distToPowerUp = Math.sqrt(Math.pow(ball.x - pu.x, 2) + Math.pow(ball.y - pu.y, 2));
+                if (distToPowerUp < ball.radius + pu.radius) {
+                    applyPowerUpEffect(pu);
+                    powerUps.splice(i, 1); // Remove collected power-up
+                }
+            }
+
+            // Update and check Static Obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                // Determine obstacle duration based on difficulty
+                const obstacleDuration = (currentDifficulty === 'chaos') ? CHAOS_OBSTACLE_DURATION : HAZARD_DURATION;
+
+                // Remove expired obstacles
+                if (currentTime - obstacle.spawnTime > obstacleDuration) {
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+                // Collision with ball
+                if (checkCircleCollision(ball, obstacle)) {
+                    resolveCircleCollision(ball, obstacle);
+                }
+            }
+
+            // Update and check Moving Mines
+            for (let i = mines.length - 1; i >= 0; i--) {
+                const mine = mines[i];
+                // Remove expired mines
+                if (currentTime - mine.spawnTime > HAZARD_DURATION) {
+                    mines.splice(i, 1);
+                    continue;
+                }
+
+                // Move mine
+                mine.x += mine.dx;
+                mine.y += mine.dy;
+
+                // Simple bounce off canvas boundaries for mines (within the main circle area)
+                const mineDistFromCenter = Math.sqrt(Math.pow(mine.x - centerX, 2) + Math.pow(mine.y - centerY, 2));
+                if (mineDistFromCenter + mine.radius > CIRCLE_RADIUS) {
+                    const angleToCenter = Math.atan2(mine.y - centerY, mine.x - centerX);
+                    const normalX = Math.cos(angleToCenter);
+                    const normalY = Math.sin(angleToCenter);
+                    const dotProduct = mine.dx * normalX + mine.dy * normalY;
+                    mine.dx -= 2 * dotProduct * normalX;
+                    mine.dy -= 2 * dotProduct * normalY;
+                    // Push mine back slightly to prevent sticking
+                    const overlap = (mineDistFromCenter + mine.radius) - CIRCLE_RADIUS;
+                    mine.x -= normalX * overlap;
+                    mine.y -= normalY * overlap;
+                }
+
+                // Collision with ball
+                if (checkCircleCollision(ball, mine)) {
+                    lives--;
+                    updateLivesDisplay();
+                    mines.splice(i, 1); // Remove mine on collision
+                    // Instantly reset ball if it hits a mine
+                    ball.x = centerX;
+                    ball.y = centerY;
+                    ball.lastQuadrant = -1; 
+                    let angle = Math.random() * Math.PI * 2;
+                    ball.dx = currentBallSpeed * Math.cos(angle);
+                    ball.dy = currentBallSpeed * Math.sin(angle);
+                    activePaddleIndex = -1; 
+                    console.log("Ball reset after hitting mine:", ball.x, ball.y, "dx:", ball.dx, "dy:", ball.dy);
+
+                    if (lives <= 0) {
+                        showMessage("Game Over!", true); 
+                        gameRunning = false;
+                        pauseButton.style.display = 'none'; 
+                        if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+                        if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+                        if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+                        clearPowerUpEffects(); 
+                    }
+                }
+            }
+
+
+            const outerBoundaryRadial = PADDLE_RADIUS + PADDLE_THICKNESS / 2 + ball.radius;
+            if (!hitPaddle && distFromCenter > outerBoundaryRadial) {
+                lives--;
+                updateLivesDisplay();
+
+                if (activePaddleIndex !== -1) {
+                    paddles[activePaddleIndex].scoreMissed++; 
+                    gameOverPaddleMissedCount = paddles[activePaddleIndex].scoreMissed;
+                }
+
+                if (lives <= 0) {
+                    showMessage("Game Over!", true); 
+                    gameRunning = false;
+                    pauseButton.style.display = 'none'; 
+                    if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+                    if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+                    if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+                    clearPowerUpEffects(); 
+                } else {
+                    ball.x = centerX;
+                    ball.y = centerY;
+                    ball.lastQuadrant = -1; 
+                    let angle = Math.random() * Math.PI * 2;
+                    ball.dx = currentBallSpeed * Math.cos(angle);
+                    ball.dy = currentBallSpeed * Math.sin(angle);
+                    activePaddleIndex = -1; 
+                    console.log("Ball reset after losing life:", ball.x, ball.y, "dx:", ball.dx, "dy:", ball.dy);
+                }
+            }
+
+            let currentQuadrant = -1;
+            for (let i = 0; i < QUADRANT_ANGLES.length; i++) {
+                let start = normalizeAngle(QUADRANT_ANGLES[i].start);
+                let end = normalizeAngle(QUADRANT_ANGLES[i].end);
+
+                if (start > end) { 
+                    if (ballAngle >= start || ballAngle <= end) {
+                        currentQuadrant = i;
+                        break;
+                    }
+                } else {
+                    if (ballAngle >= start && ballAngle <= end) {
+                        currentQuadrant = i;
+                        break;
+                    }
+                }
+            }
+
+            if (currentQuadrant !== -1 && currentQuadrant !== activePaddleIndex) {
+                if (activePaddleIndex !== -1) {
+                    paddles[activePaddleIndex].active = false;
+                }
+                activePaddleIndex = currentQuadrant;
+                paddles[activePaddleIndex].active = true;
+            } else if (currentQuadrant === -1 && activePaddleIndex !== -1) {
+                paddles[activePaddleIndex].active = false;
+                activePaddleIndex = -1;
+            }
+
+            if (activePaddleIndex !== -1) {
+                const paddle = paddles[activePaddleIndex];
+                const paddleAngularSpan = paddle.angularSpan;
+                const quadrantInfo = QUADRANT_ANGLES[activePaddleIndex];
+
+                let moveAmount = 0;
+                
+                // --- CORRECTED LOGIC FOR Q1 CONTROLS ---
+                // The direction of movement depends on the paddle's position relative to the circle's center.
+                // A positive angle change (counter-clockwise) will move a paddle differently in each quadrant.
+                if (keyState['arrowup'] || keyState['w']) {
+                    // W/ArrowUp
+                    if (activePaddleIndex === 0 || activePaddleIndex === 1 || activePaddleIndex === 2) {
+                        moveAmount = -currentPaddleSpeed; // Clockwise
+                    } else { // activePaddleIndex === 3
+                        moveAmount = currentPaddleSpeed; // Counter-clockwise
+                    }
+                } else if (keyState['arrowdown'] || keyState['s']) {
+                    // S/ArrowDown
+                    if (activePaddleIndex === 0 || activePaddleIndex === 1 || activePaddleIndex === 2) {
+                        moveAmount = currentPaddleSpeed; // Counter-clockwise
+                    } else { // activePaddleIndex === 3
+                        moveAmount = -currentPaddleSpeed; // Clockwise
+                    }
+                }
+                // --- END CORRECTED LOGIC ---
+                
+                // Apply inversion if controls are inverted
+                if (areControlsInverted) {
+                    moveAmount *= -1;
+                }
+
+                paddle.angle += moveAmount;
+
+                // Boundary checks (these remain the same)
+                if (paddle.angle + paddleAngularSpan / 2 > quadrantInfo.end) {
+                    paddle.angle = quadrantInfo.end - paddleAngularSpan / 2;
+                }
+                if (paddle.angle - paddleAngularSpan / 2 < quadrantInfo.start) {
+                    paddle.angle = quadrantInfo.start + paddleAngularSpan / 2;
+                }
+            }
+
+            updateScoreDisplays();
+        }
+
+        /**
+         * Toggles the game's pause state.
+         */
+        function togglePause() {
+            if (!gameRunning) return; 
+
+            gamePaused = !gamePaused;
+            if (gamePaused) {
+                cancelAnimationFrame(animationFrameId); 
+                pauseButton.innerText = 'Resume';
+                
+                // Display messageBox for pause
+                messageBox.style.display = 'block';
+                messageText.innerText = 'Game Paused';
+                resumeButton.style.display = 'inline-block';
+                restartButton.style.display = 'inline-block';
+                mainMenuButton.style.display = 'inline-block';
+                geminiInsightButton.style.display = 'none'; // Hide insights button on pause
+                loadingIndicator.style.display = 'none';
+                
+                if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+                if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+                if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+            } else {
+                pauseButton.innerText = 'Pause';
+                messageBox.style.display = 'none'; // Hide messageBox when resuming
+                gameLoop(); 
+                // Resume power-up and hazard spawning based on difficulty
+                if (currentDifficulty !== 'basic') {
+                    if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+                    powerUpSpawnTimer = setInterval(spawnPowerUp, POWER_UP_SPAWN_INTERVAL);
+                }
+
+                if (currentDifficulty !== 'basic') { 
+                    if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+                    obstacleSpawnTimer = setInterval(spawnObstacle, OBSTACLE_SPAWN_INTERVAL);
+                }
+                
+                if (currentDifficulty === 'easy' || currentDifficulty === 'medium' || currentDifficulty === 'hard' || currentDifficulty === 'chaos') { 
+                    if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+                    mineSpawnTimer = setInterval(spawnMine, MINE_SPAWN_INTERVAL);
+                }
+            }
+        }
+
+        /**
+         * Updates the score displays on the HTML.
+         */
+        function updateScoreDisplays() {
+            paddles.forEach(paddle => {
+                document.getElementById('score-' + paddle.scoreId + '-passed').innerText = paddle.scorePassed;
+                document.getElementById('score-' + paddle.scoreId + '-missed').innerText = paddle.scoreMissed;
+            });
+        }
+
+        /**
+         * Updates the lives display.
+         */
+        function updateLivesDisplay() {
+            livesDisplay.innerText = `Lives: ${lives}`;
+        }
+
+        /**
+         * Displays a message box with the given text and shows the restart button.
+         * This function is primarily for Game Over state.
+         * @param {string} message - The message to display.
+         * @param {boolean} showGeminiButton - Whether to show the Gemini insight button.
+         */
+        function showMessage(message, showGeminiButton = false) {
+            let scoreSummary = "\n\n--- Final Scores ---";
+            // The QUADRANT_ANGLES array is ordered such that paddleIndex 0 is Q1, 1 is Q2, 2 is Q3, 3 is Q4.
+            const qLabelsOrder = ['Q1', 'Q2', 'Q3', 'Q4']; // Now directly matches paddleIndex + 1
+            
+            qLabelsOrder.forEach(qLabel => {
+                // Find the paddle corresponding to the Q-label
+                const paddle = paddles.find(p => p.label === qLabel);
+                if (paddle) {
+                    scoreSummary += `\n${qLabel} Score: ${paddle.scorePassed}`;
+                }
+            });
+
+            messageText.innerText = message + scoreSummary;
+            messageBox.style.display = 'block';
+            
+            // Show/hide buttons relevant to Game Over
+            resumeButton.style.display = 'none'; // Hide resume button for game over
+            restartButton.style.display = 'inline-block'; 
+            mainMenuButton.style.display = 'inline-block'; 
+            geminiInsightButton.style.display = showGeminiButton ? 'inline-block' : 'none';
+            loadingIndicator.style.display = 'none';
+            
+            pauseButton.style.display = 'none'; // Hide pause button on game over
+        }
+
+        /**
+         * Hides the message box and resets button visibility for game play.
+         */
+        function hideMessage() {
+            messageBox.style.display = 'none';
+            // Ensure all buttons are hidden when the message box is hidden
+            resumeButton.style.display = 'none';
+            restartButton.style.display = 'none';
+            mainMenuButton.style.display = 'none';
+            geminiInsightButton.style.display = 'none';
+            loadingIndicator.style.display = 'none';
+            
+            if (gameRunning && !gamePaused) { 
+                pauseButton.style.display = 'block';
+            } else {
+                pauseButton.style.display = 'none';
+            }
+        }
+
+        /**
+         * Fetches game insights from the Gemini API.
+         */
+        async function getGameInsights() {
+            loadingIndicator.style.display = 'block';
+            geminiInsightButton.style.display = 'none';
+            restartButton.style.display = 'none'; 
+            mainMenuButton.style.display = 'none';
+            resumeButton.style.display = 'none'; // Ensure resume is hidden while loading insights
+
+            const totalPassed = paddles.reduce((sum, p) => sum + p.scorePassed, 0);
+            const totalMissed = paddles.reduce((sum, p) => sum + p.scoreMissed, 0);
+
+            let prompt = `The player just finished a circular ping pong game.
+            Total balls passed into other quadrants: ${totalPassed}.
+            Total times paddles missed: ${totalMissed}.
+            The game ended because the player ran out of lives. The paddle that caused the last miss had ${gameOverPaddleMissedCount} misses.
+            Based on this performance, provide a short, encouraging message to the player, a simple actionable tip for improvement, and suggest a difficulty level for their next game (Easy, Medium, or Hard) or suggest they stick to their current difficulty. Format your response clearly.`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // IMPORTANT: You will need to replace this with your own Gemini API key if deploying publicly.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    messageText.innerText = text;
+                } else {
+                    messageText.innerText = "Failed to get insights. Please try again.";
+                }
+            } catch (error) {
+                console.error("Error fetching Gemini insights:", error);
+                messageText.innerText = "Error getting insights. Check console for details.";
+            } finally {
+                loadingIndicator.style.display = 'none';
+                // Restore buttons after insights are loaded
+                geminiInsightButton.style.display = 'inline-block';
+                restartButton.style.display = 'inline-block'; 
+                mainMenuButton.style.display = 'inline-block';
+            }
+        }
+
+        /**
+         * Main game loop.
+         */
+        function gameLoop() {
+            if (!gameRunning || gamePaused) {
+                return; 
+            }
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners for paddle control
+        document.addEventListener('keydown', (e) => {
+            keyState[e.key.toLowerCase()] = true;
+            if (e.key.toLowerCase() === 'p' && gameRunning) {
+                togglePause();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keyState[e.key.toLowerCase()] = false;
+        });
+
+        // Restart button functionality (now handles both game over and pause menu)
+        restartButton.addEventListener('click', () => {
+            initGame(currentDifficulty); // Use the stored currentDifficulty
+        });
+
+        // Main Menu button functionality (now handles both game over and pause menu)
+        mainMenuButton.addEventListener('click', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            // Clear all timers and arrays when returning to main menu
+            if (powerUpSpawnTimer) clearInterval(powerUpSpawnTimer);
+            if (obstacleSpawnTimer) clearInterval(obstacleSpawnTimer);
+            if (mineSpawnTimer) clearInterval(mineSpawnTimer);
+            
+            clearPowerUpEffects(); // Clear any active power-up effects
+            powerUps = []; 
+            obstacles = []; 
+            mines = []; 
+
+            gameRunning = false; 
+            gamePaused = false; 
+            hideMessage(); // Use hideMessage to clear the messageBox
+            pauseButton.style.display = 'none'; 
+            livesDisplay.style.display = 'none'; 
+            mainMenu.style.display = 'block'; 
+            // Reset button active state
+            basicBtn.classList.remove('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.remove('active'); 
+            easyBtn.classList.add('active'); // Set Easy as default active on initial load
+        });
+
+        // Gemini Insight button functionality
+        geminiInsightButton.addEventListener('click', getGameInsights);
+
+        // Difficulty selection event listeners
+        basicBtn.addEventListener('click', () => {
+            initGame('basic');
+            basicBtn.classList.add('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.remove('active');
+        });
+
+        easyBtn.addEventListener('click', () => {
+            initGame('easy');
+            basicBtn.classList.remove('active');
+            easyBtn.classList.add('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.remove('active');
+        });
+
+        mediumBtn.addEventListener('click', () => {
+            initGame('medium');
+            basicBtn.classList.remove('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.add('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.remove('active');
+        });
+
+        hardBtn.addEventListener('click', () => {
+            initGame('hard');
+            basicBtn.classList.remove('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.add('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.remove('active');
+        });
+
+        stealthBtn.addEventListener('click', () => {
+            initGame('stealth');
+            basicBtn.classList.remove('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.add('active');
+            chaosBtn.classList.remove('active');
+        });
+
+        chaosBtn.addEventListener('click', () => { 
+            initGame('chaos');
+            basicBtn.classList.remove('active');
+            easyBtn.classList.remove('active');
+            mediumBtn.classList.remove('active');
+            hardBtn.classList.remove('active');
+            stealthBtn.classList.remove('active');
+            chaosBtn.classList.add('active');
+        });
+
+        // Pause button event listener
+        pauseButton.addEventListener('click', togglePause);
+        // Resume button event listener (now part of the messageBox)
+        resumeButton.addEventListener('click', togglePause); 
+
+        // Show main menu on window load
+        window.onload = function() {
+            adjustCanvasSize(); 
+            mainMenu.style.display = 'block'; 
+            easyBtn.classList.add('active'); // Set Easy as default active on initial load
+            window.addEventListener('resize', adjustCanvasSize);
+        };
+    </script>
+</body>
+</html>
